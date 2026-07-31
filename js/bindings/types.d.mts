@@ -1,0 +1,122 @@
+export type Thinking = "none" | "low" | "medium" | "high" | "xhigh" | "max";
+export type ReasoningMode = "standard" | "pro";
+export type Model = "gpt-5.6-sol" | "gpt-5.6-luna";
+
+export type PromptItem =
+  | { type: "text"; text: string }
+  | { type: "image"; image_url: string; detail?: "auto" | "low" | "high" | "original" | undefined }
+  | { type: "audio"; audio_url: string };
+
+export type PromptInput = string | readonly PromptItem[];
+
+export type AgentEvent = {
+  protocol_version: number;
+  request_id: string;
+  seq: number;
+  type: string;
+  payload: Record<string, unknown>;
+};
+
+export type AgentOptions = {
+  instructions?: string | undefined;
+  model?: Model | undefined;
+  reasoningMode?: ReasoningMode | undefined;
+  fastMode?: boolean | undefined;
+  sessionId?: string | undefined;
+  thinking?: Thinking | undefined;
+  workspace?: string | undefined;
+  resume?: SessionSnapshot | undefined;
+};
+
+export type SessionSnapshot = Readonly<{
+  version: number;
+  model: Model;
+  lineage_id: string;
+  prompt_cache_key: string;
+  workspace: string;
+  request_prefix?: readonly Record<string, unknown>[] | undefined;
+  canonical_context: Record<string, unknown>;
+  history: readonly Record<string, unknown>[];
+}>;
+
+export type TurnUsage = Readonly<{
+  model: Model;
+  service_tier: "standard" | "priority";
+  reported: boolean;
+  input_tokens: number;
+  cached_input_tokens: number;
+  cache_write_input_tokens: number;
+  output_tokens: number;
+  reasoning_output_tokens: number;
+  total_tokens: number;
+}>;
+
+export type ForkOptions = { at?: TurnResult | undefined };
+export type WatchEventsOptions = { includeAllSessions?: boolean | undefined };
+
+export type EventWatcher = Readonly<{
+  onEvent(listener: (event: AgentEvent) => void): () => void;
+  off(): void;
+  [Symbol.asyncIterator](): AsyncIterableIterator<AgentEvent>;
+}>;
+
+export type AgentActions = {
+  events: {
+    watch(options?: WatchEventsOptions): EventWatcher;
+  };
+  session: {
+    compact(): Promise<void>;
+    fork(options?: ForkOptions): Promise<DefaultAgent>;
+    setFastMode(enabled: boolean): Promise<void>;
+    setThinking(thinking: Thinking): Promise<void>;
+    shutdown(): Promise<void>;
+    spawn(): Promise<DefaultAgent>;
+  };
+  turn: {
+    prompt(options: { input: PromptInput }): Turn;
+  };
+};
+
+export type Agent<extended extends object = {}> = {
+  readonly key: string;
+  readonly name: string;
+  readonly sessionId: string;
+  readonly type: string;
+  readonly uid: string;
+  extend<const extension extends object>(
+    decorator: (agent: Agent<extended>) => extension,
+  ): Agent<extended & extension>;
+  /** Releases this JavaScript/WASM handle without joining unfinished turns. */
+  dispose(): void;
+} & extended;
+
+export type DefaultAgent = Agent<AgentActions>;
+
+export type Turn<agent extends Agent<object> = Agent<object>> = Readonly<{
+  readonly agent: agent;
+  result(): Promise<TurnResult>;
+  steer(options: { input: PromptInput }): Promise<void>;
+  cancel(): Promise<void>;
+  /** Releases this handle without cancelling its accepted turn. */
+  dispose(): void;
+}>;
+
+export type TurnResult = Readonly<{
+  finalMessage: string;
+  snapshot: SessionSnapshot;
+  usage: TurnUsage;
+}>;
+
+export type ToolContext = {
+  callId: string;
+  parentCallId: string;
+  sessionId: string;
+};
+
+export type Tool = {
+  description: string;
+  parameters: Record<string, unknown>;
+  handler(input: unknown, context: ToolContext): unknown | Promise<unknown>;
+};
+
+export type ToolMap = Record<string, Tool>;

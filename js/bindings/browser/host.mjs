@@ -1,0 +1,203 @@
+import { createCodeRuntime } from "../runtime/code-runtime.mjs";
+
+const DEFAULT_MAX_QUEUED_MESSAGES = 4_096;
+const DEFAULT_MAX_QUEUED_BYTES = 32 * 1024 * 1024;
+const DEFAULT_MAX_BUFFERED_SEND_BYTES = 16 * 1024 * 1024;
+const WEBSOCKET_OPEN = 1;
+
+export function createBrowserHost(options = {}) {
+  const WebSocketImpl = options.WebSocketImpl ?? globalThis.WebSocket;
+  const createWebSocket = options.createWebSocket
+    ?? (WebSocketImpl && ((endpoint) => new WebSocketImpl(endpoint)));
+  if (!createWebSocket) {
+    throw new Error("WebSocket is unavailable in this runtime");
+  }
+  const connections = new Map();
+  const code = createCodeRuntime(options.tools);
+  const toolMode = options.toolMode ?? "code";
+  if (toolMode !== "code" && toolMode !== "direct" && toolMode !== "hybrid") {
+    throw new TypeError("toolMode must be code, direct, or hybrid");
+  }
+  const onEvent = options.onEvent || (() => {});
+  const maxQueuedMessages = options.maxQueuedMessages ?? DEFAULT_MAX_QUEUED_MESSAGES;
+  const maxQueuedBytes = options.maxQueuedBytes ?? DEFAULT_MAX_QUEUED_BYTES;
+  const maxBufferedSendBytes = options.maxBufferedSendBytes ?? DEFAULT_MAX_BUFFERED_SEND_BYTES;
+  const encoder = new TextEncoder();
+  let nextHandle = 1;
+
+  async function connect(endpoint, apiKey, sessionId, metadata = {}) {
+    const authorization = options.hostAuth
+      ? { authorization: "host_managed" }
+      : { authorization: "bearer", bearerToken: apiKey };
+    const request = { ...metadata };
+    delete request.authorization;
+    delete request.bearerToken;
+    Object.assign(request, authorization);
+    const opened = await createWebSocket(endpoint, sessionId, request);
+    const { socket, ...handshake } = normalizeWebSocketConnection(opened);
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const connection = {
+        socket,
+        queue: [],
+        queuedBytes: 0,
+        waiter: undefined,
+        intentionallyClosed: false,
+        overflowed: false,
+      };
+      const resolveOpen = () => {
+        if (settled) return;
+        settled = true;
+        const handle = nextHandle++;
+        connections.set(handle, connection);
+        resolve(JSON.stringify({
+          handle,
+          status: handshake.status ?? 101,
+          request_id: handshake.requestId,
+          server_model: handshake.serverModel,
+          reasoning_included: handshake.reasoningIncluded ?? false,
+          turn_state: handshake.turnState,
+        }));
+      };
+      socket.addEventListener("open", resolveOpen, { once: true });
+      socket.addEventListener("message", (event) => {
+        enqueue(connection, typeof event.data === "string"
+          ? { kind: "text", text: event.data }
+          : { kind: "binary" });
+      });
+      socket.addEventListener("close", (event) => {
+        if (!settled) {
+          settled = true;
+          reject(new Error(`WebSocket closed during connection with code ${event.code}`));
+        } else if (!connection.intentionallyClosed && !connection.overflowed) {
+          enqueue(connection, { kind: "closed", detail: `with code ${event.code}` });
+        }
+      });
+      socket.addEventListener("error", () => {
+        if (!settled) {
+          settled = true;
+          reject(new Error("WebSocket connection failed"));
+        } else {
+          enqueue(connection, { kind: "error", detail: "WebSocket connection failed" });
+        }
+      });
+      if (socket.readyState === WEBSOCKET_OPEN) resolveOpen();
+      else if (socket.readyState > WEBSOCKET_OPEN) {
+        settled = true;
+        reject(new Error("WebSocket closed during connection"));
+      }
+    });
+  }
+
+  function send(handle, message) {
+    const connection = connections.get(handle);
+    if (!connection || connection.socket.readyState !== WEBSOCKET_OPEN) {
+      return Promise.resolve(JSON.stringify({
+        ok: false,
+        reconnectable: true,
+        error: "WebSocket is no longer open",
+      }));
+    }
+    try {
+      const frameBytes = encoder.encode(message).byteLength;
+      if (frameBytes > maxBufferedSendBytes
+        || connection.socket.bufferedAmount + frameBytes > maxBufferedSendBytes) {
+        return Promise.resolve(JSON.stringify({
+          ok: false,
+          reconnectable: false,
+          error: `buffered WebSocket sends exceeded ${maxBufferedSendBytes} bytes`,
+        }));
+      }
+      connection.socket.send(message);
+      return Promise.resolve(JSON.stringify({ ok: true }));
+    } catch (error) {
+      return Promise.resolve(JSON.stringify({
+        ok: false,
+        reconnectable: connection.socket.readyState !== WEBSOCKET_OPEN,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  }
+
+  function next(handle, timeoutMs) {
+    const connection = connections.get(handle);
+    if (!connection) {
+      return Promise.resolve(JSON.stringify({ kind: "closed", detail: "before the next frame" }));
+    }
+    if (connection.queue.length) {
+      const entry = connection.queue.shift();
+      connection.queuedBytes -= entry.bytes;
+      return Promise.resolve(JSON.stringify(entry.message));
+    }
+    if (connection.waiter) return Promise.reject(new Error("concurrent reads are unsupported"));
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        connection.waiter = undefined;
+        resolve(JSON.stringify({ kind: "timeout" }));
+      }, timeoutMs);
+      connection.waiter = (message) => {
+        clearTimeout(timer);
+        connection.waiter = undefined;
+        resolve(JSON.stringify(message));
+      };
+    });
+  }
+
+  function close(handle) {
+    const connection = connections.get(handle);
+    if (!connection) return;
+    connections.delete(handle);
+    connection.intentionallyClosed = true;
+    connection.waiter?.({ kind: "closed", detail: "by the WASM runtime" });
+    connection.socket.close();
+  }
+
+  function enqueue(connection, message) {
+    if (connection.overflowed) return;
+    if (connection.waiter) {
+      connection.waiter(message);
+      return;
+    }
+    const bytes = encoder.encode(message.kind === "text" ? message.text : JSON.stringify(message)).byteLength;
+    if (connection.queue.length >= maxQueuedMessages || connection.queuedBytes + bytes > maxQueuedBytes) {
+      connection.queue.length = 0;
+      connection.queuedBytes = 0;
+      connection.overflowed = true;
+      const error = {
+        kind: "error",
+        detail: `receive queue exceeded ${maxQueuedMessages} messages or ${maxQueuedBytes} bytes`,
+      };
+      const errorBytes = encoder.encode(JSON.stringify(error)).byteLength;
+      connection.queue.push({ message: error, bytes: errorBytes });
+      connection.queuedBytes = errorBytes;
+      connection.socket.close(1009, "receive queue exceeded configured bounds");
+      return;
+    }
+    connection.queue.push({ message, bytes });
+    connection.queuedBytes += bytes;
+  }
+
+  return Object.freeze({
+    connect,
+    send,
+    next,
+    close,
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    executeCode: code.executeCode,
+    executeTool: code.executeTool,
+    toolMode: () => toolMode,
+    toolDefinitions: code.toolDefinitions,
+    emitEvent: onEvent,
+    reset: code.reset,
+  });
+}
+
+function normalizeWebSocketConnection(opened) {
+  if (opened?.socket && typeof opened.socket.addEventListener === "function") {
+    return opened;
+  }
+  if (!opened || typeof opened.addEventListener !== "function") {
+    throw new TypeError("createWebSocket must return a WebSocket or a connection descriptor");
+  }
+  return { socket: opened };
+}

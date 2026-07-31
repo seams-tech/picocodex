@@ -1,0 +1,8 @@
+.env
+.env.*
+.cache/
+.picocodex/
+target/
+js/bindings/node_modules/
+js/bindings/pkg-node/
+js/bindings/pkg-web/
