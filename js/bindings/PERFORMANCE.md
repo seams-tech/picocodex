@@ -4,7 +4,7 @@ The JavaScript boundary must remain small compared with a model turn. Its
 deterministic gate runs against the built Node and browser WASM packages:
 
 ```sh
-just build-wasm
+just wasm
 node --test --test-timeout=15000 js/bindings/test/performance.bench.mjs
 ```
 

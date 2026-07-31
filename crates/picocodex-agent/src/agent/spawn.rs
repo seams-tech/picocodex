@@ -192,8 +192,7 @@ where
         durability: durability.clone(),
         shutdown: shutdown.clone(),
     };
-    // Start discovery before returning the handle so an idle CLI or TUI immediately
-    // contributes its human think time to provider prewarming.
+    // Start discovery before returning so the host contributes idle time to prewarming.
     tools.start_providers();
     let driver = AgentDriver {
         commands: receiver,
