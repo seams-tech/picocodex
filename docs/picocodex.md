@@ -744,7 +744,7 @@ history, and blocks force pushes and deletion.
 - [x] Add a Wasm regression proving a direct tool call uses no evaluator.
 - [x] Add a Wasm regression proving Hybrid retains Code Mode.
 
-NF3 completed on 2026-07-31 in `3065531`. The retained Rust suite, Wasm build,
+NF3 completed on 2026-07-31 in `bff6f9e`. The retained Rust suite, Wasm build,
 36 JavaScript/Wasm behavior tests, three performance checks, TypeScript
 surface, package validation, formatting, and Clippy all pass. Tag the reviewed
 NF3 revision intended for Satyr after the protected-branch merge.
