@@ -701,10 +701,10 @@ through the sole adapter branch.
 - [x] Run retained upstream tests.
 - [x] Initialize a new local Git repository after pruning and renaming pass.
 - [x] Create the initial repository commit only after pruning and verification.
-- [ ] Create the independent `seams-tech/picocodex` GitHub repository.
-- [ ] Push the verified initial commit and make `main` the protected default
+- [x] Create the independent `seams-tech/picocodex` GitHub repository.
+- [x] Push the verified initial commit and make `main` the protected default
   branch.
-- [ ] Tag the first immutable Picocodex baseline.
+- [x] Tag the first immutable Picocodex baseline.
 
 The baseline commit contains the Picocodex identity, pruning, required build
 repair, host-managed authentication, and Hybrid tool exposure. It contains no
@@ -715,9 +715,10 @@ reviewable without retaining upstream Git metadata.
 NF2's local repository work completed on 2026-07-31 at root commit
 `a621800`. The untouched upstream bundle, source archive, dependency reports,
 and 31.9 MB binary transformation patch are preserved under
-`~/Dev/rust/picocodex-upstream-preservation`. Publication remains pending
-remote repository creation, artifact-storage upload, branch protection, and
-the immutable baseline tag.
+`~/Dev/rust/picocodex-upstream-preservation`. The independent public repository
+is published at `seams-tech/picocodex`; `main` requires pull requests and one
+approval, and tag `import-2026-07-31` identifies the verified import.
+Satyr-controlled artifact-storage upload remains pending.
 
 ### NF3 — Add the Satyr host contract
 
