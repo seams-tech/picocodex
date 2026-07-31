@@ -1,0 +1,432 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { createBrowserHost } from "../browser/host.mjs";
+
+test("browser host carries ordered frames and application tools", async () => {
+  const events = [];
+  const host = createBrowserHost({
+    WebSocketImpl: FakeWebSocket,
+    onEvent: (event) => events.push(event),
+    tools: {
+      double: {
+        description: "Double a number.",
+        parameters: { type: "object" },
+        handler: ({ value }) => value * 2,
+      },
+    },
+  });
+  const connecting = host.connect("ws://example.test", "not-forwarded", "session");
+  const socket = FakeWebSocket.instances.at(-1);
+  socket.open();
+  assert.equal(JSON.parse(await connecting).status, 101);
+  socket.message('{"type":"one"}');
+  socket.message('{"type":"two"}');
+  assert.equal(JSON.parse(await host.next(1, 10)).text, '{"type":"one"}');
+  assert.equal(JSON.parse(await host.next(1, 10)).text, '{"type":"two"}');
+
+  const execution = JSON.parse(await host.executeCode(
+    "text(await tools.double({ value: 21 }));",
+    "session",
+    "call-exec",
+  ));
+  assert.equal(execution.success, true);
+  assert.match(JSON.stringify(execution.output), /42/);
+  assert.equal(execution.nested_calls[0].name, "double");
+  assert.equal(execution.nested_calls[0].call_id, "call-exec/code-1");
+  assert.equal(Number.isSafeInteger(execution.nested_calls[0].started_after_ns), true);
+  assert.ok(execution.nested_calls[0].started_after_ns >= 0);
+  assert.equal(JSON.parse(host.toolDefinitions())[0].name, "double");
+  host.emitEvent("event");
+  assert.deepEqual(events, ["event"]);
+});
+
+test("browser host directly dispatches tools without dynamic code evaluation", async () => {
+  const host = createBrowserHost({
+    toolMode: "direct",
+    tools: {
+      runtimeInfo: {
+        parameters: { type: "object", additionalProperties: false },
+        handler: (_input, context) => ({ runtime: "worker", call_id: context.callId }),
+      },
+    },
+  });
+  assert.equal(host.toolMode(), "direct");
+  const result = JSON.parse(await host.executeTool(
+    "runtimeInfo",
+    "{}",
+    "session-1",
+    "call-1",
+  ));
+  assert.equal(result.success, true);
+  assert.deepEqual(JSON.parse(result.output), { runtime: "worker", call_id: "call-1" });
+});
+
+test("browser host exposes direct tools and Code Mode in hybrid mode", async () => {
+  const host = createBrowserHost({
+    toolMode: "hybrid",
+    tools: {
+      double: {
+        parameters: { type: "object", additionalProperties: false },
+        handler: ({ value }) => value * 2,
+      },
+    },
+  });
+  assert.equal(host.toolMode(), "hybrid");
+  const direct = JSON.parse(await host.executeTool(
+    "double",
+    '{"value":21}',
+    "session-1",
+    "call-direct",
+  ));
+  assert.equal(direct.success, true);
+  assert.equal(JSON.parse(direct.output), 42);
+
+  const code = JSON.parse(await host.executeCode(
+    "text(await tools.double({ value: 20 }));",
+    "session-1",
+    "call-code",
+  ));
+  assert.equal(code.success, true);
+  assert.match(JSON.stringify(code.output), /40/);
+});
+
+test("browser host does not require a global constructor for host-owned sockets", async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "WebSocket");
+  try {
+    Object.defineProperty(globalThis, "WebSocket", {
+      configurable: true,
+      value: undefined,
+      writable: true,
+    });
+
+    const directSocket = new FakeWebSocket("wss://direct.test");
+    const direct = createBrowserHost({
+      createWebSocket() {
+        return directSocket;
+      },
+    });
+    const connecting = direct.connect(
+      "wss://direct.test",
+      "host-managed",
+      "direct-session",
+    );
+    directSocket.open();
+    await connecting;
+    assert.equal(JSON.parse(await direct.send(1, "request")).ok, true);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, "WebSocket", descriptor);
+    else delete globalThis.WebSocket;
+  }
+});
+
+test("browser host awaits Worker upgrades and preserves handshake metadata", async () => {
+  const socket = new FakeWebSocket("wss://api.openai.test/v1/responses");
+  socket.readyState = FakeWebSocket.OPEN;
+  let request;
+  const host = createBrowserHost({
+    async createWebSocket(endpoint, sessionId, received) {
+      await Promise.resolve();
+      request = { endpoint, sessionId, received };
+      return {
+        socket,
+        status: 101,
+        requestId: "request-1",
+        serverModel: "gpt-test",
+        reasoningIncluded: true,
+        turnState: "turn-state-1",
+      };
+    },
+  });
+
+  const connected = JSON.parse(await host.connect(
+    "wss://api.openai.test/v1/responses",
+    "secret-token",
+    "session-1",
+    { accountId: "account-1", fedramp: true, turnState: "turn-state-0" },
+  ));
+
+  assert.deepEqual(request, {
+    endpoint: "wss://api.openai.test/v1/responses",
+    sessionId: "session-1",
+    received: {
+      accountId: "account-1",
+      authorization: "bearer",
+      bearerToken: "secret-token",
+      fedramp: true,
+      turnState: "turn-state-0",
+    },
+  });
+  assert.deepEqual(connected, {
+    handle: 1,
+    status: 101,
+    request_id: "request-1",
+    server_model: "gpt-test",
+    reasoning_included: true,
+    turn_state: "turn-state-1",
+  });
+});
+
+test("browser host never exposes its host-managed credential marker", async () => {
+  const socket = new FakeWebSocket("wss://chatgpt.test/backend-api/codex/responses");
+  socket.readyState = FakeWebSocket.OPEN;
+  let request;
+  const host = createBrowserHost({
+    hostAuth: true,
+    createWebSocket(_endpoint, _sessionId, received) {
+      request = received;
+      return socket;
+    },
+  });
+
+  await host.connect(socket.url, "host-managed", "session-1", {
+    authorization: "bearer",
+    bearerToken: "metadata-must-not-override-auth",
+  });
+  assert.deepEqual(request, { authorization: "host_managed" });
+});
+
+test("an API key equal to the old host marker remains a bearer credential", async () => {
+  const socket = new FakeWebSocket("wss://api.openai.test/v1/responses");
+  socket.readyState = FakeWebSocket.OPEN;
+  let request;
+  const host = createBrowserHost({
+    createWebSocket(_endpoint, _sessionId, received) {
+      request = received;
+      return socket;
+    },
+  });
+
+  await host.connect(socket.url, "host-managed", "session-1", {
+    authorization: "host_managed",
+  });
+  assert.deepEqual(request, {
+    authorization: "bearer",
+    bearerToken: "host-managed",
+  });
+});
+
+test("browser host rejects failed upgrades without consuming handles", async () => {
+  const closed = new FakeWebSocket("wss://closed.test");
+  closed.readyState = 3;
+  const opened = new FakeWebSocket("wss://opened.test");
+  opened.readyState = FakeWebSocket.OPEN;
+  const results = [
+    Promise.reject(new Error("upgrade denied")),
+    {},
+    closed,
+    opened,
+  ];
+  const host = createBrowserHost({
+    createWebSocket() {
+      return results.shift();
+    },
+  });
+
+  await assert.rejects(
+    host.connect("wss://example.test", "secret", "session"),
+    /upgrade denied/,
+  );
+  await assert.rejects(
+    host.connect("wss://example.test", "secret", "session"),
+    /must return a WebSocket or a connection descriptor/,
+  );
+  await assert.rejects(
+    host.connect("wss://example.test", "secret", "session"),
+    /closed during connection/,
+  );
+  assert.equal(
+    JSON.parse(await host.connect("wss://example.test", "secret", "session")).handle,
+    1,
+  );
+});
+
+test("browser host settles a pre-opened socket exactly once", async () => {
+  const first = new FakeWebSocket("wss://first.test");
+  first.readyState = FakeWebSocket.OPEN;
+  const second = new FakeWebSocket("wss://second.test");
+  second.readyState = FakeWebSocket.OPEN;
+  const sockets = [first, second];
+  const host = createBrowserHost({
+    createWebSocket() {
+      return sockets.shift();
+    },
+  });
+
+  assert.equal(
+    JSON.parse(await host.connect(first.url, "secret", "session")).handle,
+    1,
+  );
+  first.open();
+  assert.equal(
+    JSON.parse(await host.connect(second.url, "secret", "session")).handle,
+    2,
+  );
+});
+
+test("browser host bounds queued receives and buffered sends", async () => {
+  const host = createBrowserHost({
+    WebSocketImpl: FakeWebSocket,
+    maxQueuedMessages: 1,
+    maxQueuedBytes: 1_024,
+    maxBufferedSendBytes: 4,
+  });
+  const connecting = host.connect("ws://example.test", "not-forwarded", "session");
+  const socket = FakeWebSocket.instances.at(-1);
+  socket.open();
+  await connecting;
+
+  socket.message("first");
+  socket.message("second");
+  assert.match(JSON.parse(await host.next(1, 10)).detail, /receive queue exceeded/);
+  assert.equal(socket.closedCode, 1009);
+
+  const secondHost = createBrowserHost({
+    WebSocketImpl: FakeWebSocket,
+    maxBufferedSendBytes: 4,
+  });
+  const secondConnecting = secondHost.connect("ws://example.test", "not-forwarded", "session");
+  const secondSocket = FakeWebSocket.instances.at(-1);
+  secondSocket.open();
+  await secondConnecting;
+  const send = JSON.parse(await secondHost.send(1, "12345"));
+  assert.equal(send.ok, false);
+  assert.match(send.error, /buffered WebSocket sends exceeded/);
+});
+
+test("browser host keeps zero-argument tool calls wire-complete", async () => {
+  const host = createBrowserHost({
+    WebSocketImpl: FakeWebSocket,
+    tools: {
+      runtimeInfo: {
+        description: "Describe the runtime.",
+        parameters: { type: "object", additionalProperties: false },
+        handler: () => ({ runtime: "browser" }),
+      },
+    },
+  });
+
+  const execution = JSON.parse(
+    await host.executeCode("text(await tools.runtimeInfo());"),
+  );
+  assert.equal(execution.success, true);
+  assert.equal(execution.nested_calls[0].input, null);
+  assert.deepEqual(JSON.parse(execution.nested_calls[0].output), {
+    runtime: "browser",
+  });
+});
+
+test("browser host passes session context and emits generated images", async () => {
+  let context;
+  const host = createBrowserHost({
+    WebSocketImpl: FakeWebSocket,
+    tools: {
+      makeImage: {
+        handler: (_input, received) => {
+          context = received;
+          return { image_url: "data:image/png;base64,a" };
+        },
+      },
+    },
+  });
+
+  const execution = JSON.parse(await host.executeCode(
+    "generatedImage(await tools.makeImage({ prompt: 'demo' }));",
+    "session-image",
+    "call-image",
+  ));
+  assert.equal(execution.success, true);
+  assert.equal(context.sessionId, "session-image");
+  assert.equal(context.parentCallId, "call-image");
+  assert.equal(context.callId, "call-image/code-1");
+  assert.equal(execution.output[1].type, "input_image");
+});
+
+test("Code Mode snapshots definitions, inputs, outputs, and handlers at its boundary", async () => {
+  const parameters = {
+    type: "object",
+    properties: { value: { type: "integer" } },
+  };
+  const configuration = {
+    inspect: {
+      description: "Inspect without mutating the recorded call.",
+      parameters,
+      handler(input) {
+        input.value = 99;
+        return [{ type: "input_text", text: "original output" }];
+      },
+    },
+  };
+  const host = createBrowserHost({
+    WebSocketImpl: FakeWebSocket,
+    tools: configuration,
+  });
+
+  parameters.properties.value.type = "string";
+  configuration.inspect.handler = () => "replacement";
+  configuration.extra = {
+    description: "Added too late.",
+    parameters: { type: "object" },
+    handler: () => "extra",
+  };
+
+  const definitions = JSON.parse(host.toolDefinitions());
+  assert.equal(definitions.length, 1);
+  assert.equal(definitions[0].parameters.properties.value.type, "integer");
+
+  const execution = JSON.parse(await host.executeCode(
+    [
+      "const output = await tools.inspect({ value: 7 });",
+      "output[0].text = 'mutated after return';",
+      "text(output);",
+    ].join("\n"),
+    "session-snapshot",
+    "call-snapshot",
+  ));
+  assert.equal(execution.success, true);
+  assert.deepEqual(execution.nested_calls[0].input, { value: 7 });
+  assert.deepEqual(execution.nested_calls[0].output, [{
+    type: "input_text",
+    text: "original output",
+  }]);
+});
+
+class FakeWebSocket {
+  static OPEN = 1;
+  static instances = [];
+
+  constructor(url) {
+    this.url = url;
+    this.readyState = 0;
+    this.bufferedAmount = 0;
+    this.listeners = new Map();
+    this.sent = [];
+    FakeWebSocket.instances.push(this);
+  }
+
+  addEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  open() {
+    this.readyState = FakeWebSocket.OPEN;
+    this.emit("open", {});
+  }
+
+  message(data) {
+    this.emit("message", { data });
+  }
+
+  send(message) { this.sent.push(message); }
+  close(code) {
+    this.readyState = 3;
+    this.closedCode = code;
+    this.emit("close", { code });
+  }
+
+  emit(type, event) {
+    for (const listener of this.listeners.get(type) || []) listener(event);
+  }
+}

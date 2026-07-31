@@ -1,0 +1,32 @@
+import {
+  compact as compactAgent,
+  fork as forkAgent,
+  setFastMode as setAgentFastMode,
+  setThinking as setAgentThinking,
+  shutdown as shutdownAgent,
+  spawn as spawnAgent,
+} from "../internal.mjs";
+
+export function compact(agent) {
+  return compactAgent(agent);
+}
+
+export function fork(agent, options = {}) {
+  return forkAgent(agent, options);
+}
+
+export function spawn(agent) {
+  return spawnAgent(agent);
+}
+
+export function setThinking(agent, thinking) {
+  return setAgentThinking(agent, thinking);
+}
+
+export function setFastMode(agent, enabled) {
+  return setAgentFastMode(agent, enabled);
+}
+
+export function shutdown(agent) {
+  return shutdownAgent(agent);
+}

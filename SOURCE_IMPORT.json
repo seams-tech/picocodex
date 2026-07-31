@@ -1,0 +1,37 @@
+{
+  "imported_at": "2026-07-31",
+  "source_repository": "https://github.com/gakonst/nanocodex",
+  "base_commit": "3d4548b0c30f2ffbda686b16d7221ffd4faacbca",
+  "applied_commits": [
+    "66c9f38",
+    "3f522fc",
+    "e52dc62",
+    "8516800"
+  ],
+  "source_bundle": {
+    "file": "nanocodex-3d4548b-all.bundle",
+    "sha256": "5be7b8c63445a06865b2f88f7158ca74fb95e6413f39726e8cd96d6fe16f8b69"
+  },
+  "source_archive": {
+    "file": "nanocodex-3d4548b-source.tar.gz",
+    "sha256": "72b96174edca7f0fa73fdc4038fb2c9b54021a92b0e8e574ce2513a328972305"
+  },
+  "transformation_patch": {
+    "file": "import-to-picocodex.patch",
+    "sha256": "d1b0299539e4ea2b06ecb4c6580fead2f83399ed71b31ae82a7a79dd98c9995a"
+  },
+  "licenses": [
+    "MIT",
+    "Apache-2.0"
+  ],
+  "excluded_upstream_surfaces": [
+    "standalone applications",
+    "KVM and retained VM workspaces",
+    "browser and voice agents",
+    "payment services",
+    "Python bindings",
+    "React and terminal UIs",
+    "deployment applications",
+    "Harbor eval applications"
+  ]
+}
