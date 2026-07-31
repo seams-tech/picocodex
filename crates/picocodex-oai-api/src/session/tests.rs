@@ -22,7 +22,7 @@ use crate::{
 
 use crate::{OpenAi, ResponseEvent};
 
-use super::{ResponseError, ResponseErrorKind, response::estimate_cost};
+use super::{ResponseError, ResponseErrorKind};
 
 #[derive(Clone)]
 struct Scripted {
@@ -107,24 +107,10 @@ async fn response_stream_and_future_share_one_completed_operation() {
     };
 
     assert_eq!(completed.output_text(), "answer-1");
-    let estimated_cost = completed
-        .estimated_cost()
-        .expect("provider usage should produce an estimate");
-    assert_eq!(estimated_cost.amount().decimal(), "0.00021");
-    assert_eq!(
-        completed.cost_status(),
-        crate::CostStatus::EstimatedFromUsage
-    );
+    assert_eq!(completed.usage().map(|usage| usage.total_tokens), Some(17));
     assert_eq!(calls.load(Ordering::Relaxed), 1);
     assert_eq!(session.history_len(), 2);
     assert_eq!(session.active_context_tokens(), 17);
-}
-
-#[test]
-fn missing_usage_never_becomes_a_zero_cost_estimate() {
-    let (estimate, status) = estimate_cost(None, false);
-    assert!(estimate.is_none());
-    assert_eq!(status, crate::CostStatus::UsageNotReported);
 }
 
 #[derive(Debug)]

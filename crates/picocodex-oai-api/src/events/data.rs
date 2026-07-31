@@ -5,8 +5,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use serde_json::value::RawValue;
 
-use crate::CostStatus;
-use crate::{AgentEventKind, EstimatedUsdCost, MessagePhase, ToolOutputBody, Usage};
+use crate::{AgentEventKind, MessagePhase, ToolOutputBody, Usage};
 
 /// A normalized view of one event in the session-wide agent firehose.
 ///
@@ -253,13 +252,10 @@ pub struct RunTerminal {
     /// Runtime, transport, and token measurements.
     #[serde(flatten)]
     pub metrics: RunMetrics,
-    /// Exact estimate using the built-in model and service-tier rates.
-    pub estimated_cost: Option<EstimatedUsdCost>,
-    /// Floating-point compatibility projection for existing JSONL consumers.
-    pub cost_usd: Option<f64>,
-    /// Why an exact local estimate is present or unavailable.
-    #[serde(default)]
-    pub cost_status: CostStatus,
+    /// Provider service tier requested for the turn.
+    pub service_tier: String,
+    /// Whether the provider reported usage for any model call.
+    pub usage_reported: bool,
 }
 
 /// Lifecycle state for one model-requested tool call.

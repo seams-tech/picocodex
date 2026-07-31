@@ -24,7 +24,7 @@ where
             AgentEventKind::ModelCallStarted,
             ModelCallStarted {
                 call_index,
-                model: MODEL,
+                model: self.model.as_str(),
                 reasoning_mode: self.config.reasoning_mode.as_str(),
                 effort: self.thinking.as_str(),
                 previous_response_id: previous_response_id.as_deref(),
@@ -36,12 +36,14 @@ where
             conversation.shared_history(),
             conversation.delta_start(),
             previous_response_id.as_deref(),
+            self.model,
             self.thinking,
             self.fast_mode,
         );
         let (input_item_count, input_bytes, input_content) = trace_model_input(&request);
         let span = model_call_span(
             call_index,
+            self.model.as_str(),
             self.config.reasoning_mode.as_str(),
             self.thinking.as_str(),
             previous_response_id.is_some(),
@@ -83,7 +85,7 @@ where
         span.record("otel.status_code", "OK");
         span.record("duration_ns", duration_ns);
         if let Some(usage) = &response.usage {
-            record_usage(&span, usage, self.fast_mode);
+            record_usage(&span, usage, self.model, self.fast_mode);
         }
         self.stats.model_duration_ns += duration_ns;
         if let Some(usage) = &response.usage {
@@ -94,7 +96,7 @@ where
             AgentEventKind::ModelCallCompleted,
             ModelCallCompleted {
                 call_index,
-                model: MODEL,
+                model: self.model.as_str(),
                 response_id: &response.id,
                 attempt,
                 connection_generation,
@@ -122,7 +124,7 @@ where
             AgentEventKind::ModelCallFailed,
             ModelCallFailed {
                 call_index,
-                model: MODEL,
+                model: self.model.as_str(),
                 duration_ns,
                 error: &message,
             },
@@ -221,6 +223,7 @@ pub(super) fn owned_code_context(
     call: &CodeCall,
     history: Option<Arc<Vec<ResponseItem>>>,
     session_id: &str,
+    model: Model,
 ) -> Result<Option<OwnedToolContext>> {
     if call.name != "exec" {
         return Ok(None);
@@ -229,7 +232,7 @@ pub(super) fn owned_code_context(
         detail: "exec call did not have an owned history snapshot",
     })?;
     Ok(Some(OwnedToolContext::new(
-        MODEL,
+        model.as_str(),
         session_id,
         &call.call_id,
         history,
@@ -267,6 +270,7 @@ pub(super) fn record_indexed_span_content(
 
 pub(super) fn model_call_span(
     call_index: u32,
+    model: &str,
     reasoning_mode: &str,
     reasoning_effort: &str,
     previous_response: bool,
@@ -278,7 +282,7 @@ pub(super) fn model_call_span(
         "model.call",
         otel.kind = "internal",
         otel.status_code = tracing::field::Empty,
-        model = MODEL,
+        model,
         reasoning.mode = reasoning_mode,
         reasoning.effort = reasoning_effort,
         model.call_index = call_index,
@@ -300,8 +304,7 @@ pub(super) fn model_call_span(
         output_tokens = tracing::field::Empty,
         reasoning_output_tokens = tracing::field::Empty,
         total_tokens = tracing::field::Empty,
-        cost.usd = tracing::field::Empty,
-        cost.service_tier = tracing::field::Empty,
+        service_tier = tracing::field::Empty,
         reasoning.summary_count = tracing::field::Empty,
         time_to_first_event_ns = tracing::field::Empty,
         time_to_first_output_ns = tracing::field::Empty,
@@ -312,13 +315,13 @@ pub(super) fn model_call_span(
     )
 }
 
-pub(super) fn warmup_span(config: &ModelConfig) -> tracing::Span {
+pub(super) fn warmup_span(config: &ModelConfig, model: Model) -> tracing::Span {
     info_span!(
         target: "picocodex",
         "model.warmup",
         otel.kind = "internal",
         otel.status_code = tracing::field::Empty,
-        model = MODEL,
+        model = model.as_str(),
         system_prompt.bytes = config.system_prompt().len(),
         warmup.source = tracing::field::Empty,
         status = tracing::field::Empty,
@@ -329,8 +332,7 @@ pub(super) fn warmup_span(config: &ModelConfig) -> tracing::Span {
         output_tokens = tracing::field::Empty,
         reasoning_output_tokens = tracing::field::Empty,
         total_tokens = tracing::field::Empty,
-        cost.usd = tracing::field::Empty,
-        cost.service_tier = tracing::field::Empty,
+        service_tier = tracing::field::Empty,
     )
 }
 
@@ -356,12 +358,11 @@ pub(super) fn compaction_span(
         output_tokens = tracing::field::Empty,
         reasoning_output_tokens = tracing::field::Empty,
         total_tokens = tracing::field::Empty,
-        cost.usd = tracing::field::Empty,
-        cost.service_tier = tracing::field::Empty,
+        service_tier = tracing::field::Empty,
     )
 }
 
-pub(super) fn record_usage(span: &tracing::Span, usage: &Usage, fast_mode: bool) {
+pub(super) fn record_usage(span: &tracing::Span, usage: &Usage, model: Model, fast_mode: bool) {
     let cached_input_tokens = usage
         .input_tokens_details
         .as_ref()
@@ -380,17 +381,15 @@ pub(super) fn record_usage(span: &tracing::Span, usage: &Usage, fast_mode: bool)
     span.record("output_tokens", usage.output_tokens);
     span.record("reasoning_output_tokens", reasoning_output_tokens);
     span.record("total_tokens", usage.total_tokens);
-    let estimate = estimate(
-        usage,
+    span.record("model", model.as_str());
+    span.record(
+        "service_tier",
         if fast_mode {
-            ServiceTier::Priority
+            ServiceTier::Priority.as_str()
         } else {
-            ServiceTier::Standard
+            ServiceTier::Standard.as_str()
         },
     );
-    let amount = estimate.amount().decimal();
-    span.record("cost.usd", amount.as_str());
-    span.record("cost.service_tier", estimate.service_tier().as_str());
 }
 
 pub(super) fn record_turn_usage(span: &tracing::Span, usage: &TurnUsage) {
@@ -406,12 +405,9 @@ pub(super) fn record_turn_usage(span: &tracing::Span, usage: &TurnUsage) {
         usage.reasoning_output_tokens(),
     );
     span.record("usage.total_tokens", usage.total_tokens());
-    span.record("cost.status", usage.cost_status().as_str());
-    if let Some(cost) = usage.estimated_cost() {
-        let amount = cost.amount().decimal();
-        span.record("cost.usd", amount.as_str());
-        span.record("cost.service_tier", cost.service_tier().as_str());
-    }
+    span.record("usage.model", usage.model().as_str());
+    span.record("usage.service_tier", usage.service_tier().as_str());
+    span.record("usage.reported", usage.reported());
 }
 
 pub(super) fn record_model_response(span: &tracing::Span, response: &TurnResult) {

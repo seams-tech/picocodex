@@ -122,21 +122,15 @@ test("Node-hosted WASM preserves follow-ons, cache identity, events, and custom 
   const first = await firstTurn.result();
   assert.equal(first.finalMessage, "42");
   assert.deepEqual(first.usage, {
+    model: "gpt-5.6-sol",
+    service_tier: "standard",
+    reported: true,
     input_tokens: 20,
     cached_input_tokens: 10,
     cache_write_input_tokens: 0,
     output_tokens: 4,
     reasoning_output_tokens: 2,
     total_tokens: 24,
-    estimated_cost: {
-      usd: "0.000175",
-      input_usd: "0.00005",
-      cached_input_usd: "0.000005",
-      cache_write_input_usd: "0",
-      output_usd: "0.00012",
-      service_tier: "standard",
-    },
-    cost_status: "estimated_from_usage",
   });
   assert.strictEqual(Actions.turn.getUsage(first), first.usage);
   await agent.session.setThinking("high");
@@ -151,8 +145,8 @@ test("Node-hosted WASM preserves follow-ons, cache identity, events, and custom 
   assert.equal(server.connections, 1);
   assert.equal(events.filter((event) => event.type === "run.completed").length, 2);
   assert.equal(
-    events.find((event) => event.type === "run.completed")?.payload.estimated_cost.usd,
-    "0.000175",
+    events.find((event) => event.type === "run.completed")?.payload.service_tier,
+    "standard",
   );
   assert.ok(events.some((event) => event.type === "tool.call" && event.payload.tool === "multiply"));
   watch.off();

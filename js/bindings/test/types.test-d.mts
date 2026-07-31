@@ -1,7 +1,7 @@
 import {
   Actions,
   Agent,
-  type CostStatus,
+  type Model,
   type SessionSnapshot,
   type Turn,
   type TurnResult,
@@ -27,14 +27,13 @@ async function check() {
   const message: string = completed.finalMessage;
   const snapshot: SessionSnapshot = completed.snapshot;
   const usage: Actions.turn.getUsage.ReturnType = completed.usage;
-  usage.estimated_cost?.usd;
-  const costStatus: CostStatus = usage.cost_status;
+  const model: Model = usage.model;
   Actions.turn.getSnapshot(completed);
   Actions.turn.getUsage(completed);
   void message;
   void sameResult;
   void usage;
-  void costStatus;
+  void model;
 
   await Agent.create({ apiKey, resume: snapshot });
 

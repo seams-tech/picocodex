@@ -3,10 +3,10 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use picocodex_agent::{
-    AgentEvents, CostStatus, EstimatedUsdCost, Picocodex, PicocodexBuilder, PicocodexError,
-    PromptRoute, ServiceTier, Turn, TurnControl, TurnResult, TurnUsage, UsdAmount,
+    AgentEvents, Picocodex, PicocodexBuilder, PicocodexError, PromptRoute, ServiceTier, Turn,
+    TurnControl, TurnResult, TurnUsage,
 };
-pub use picocodex_oai_api::{OpenAi, ReasoningMode, Thinking};
+pub use picocodex_oai_api::{Model, OpenAi, ReasoningMode, Thinking};
 #[cfg(not(target_family = "wasm"))]
 #[cfg_attr(docsrs, doc(cfg(not(target_family = "wasm"))))]
 pub use picocodex_tools::tool;
@@ -18,9 +18,8 @@ pub use picocodex_tools::{Tool, Tools};
 /// [`crate::oai`] and [`crate::tools`].
 pub mod agent {
     pub use picocodex_agent::{
-        AgentEvents, AgentHandle, CostStatus, EstimatedUsdCost, Picocodex, PicocodexBuilder,
-        PicocodexError, PromptRoute, Result, ServiceTier, Turn, TurnControl, TurnResult, TurnUsage,
-        UsdAmount, events, input, session, usage,
+        AgentEvents, AgentHandle, Picocodex, PicocodexBuilder, PicocodexError, PromptRoute, Result,
+        ServiceTier, Turn, TurnControl, TurnResult, TurnUsage, events, input, session, usage,
     };
 }
 
@@ -37,7 +36,7 @@ pub mod prelude {
     #[cfg(not(target_family = "wasm"))]
     #[cfg_attr(docsrs, doc(cfg(not(target_family = "wasm"))))]
     pub use crate::tool;
-    pub use crate::{OpenAi, Picocodex, PicocodexBuilder, Tool, Tools};
+    pub use crate::{Model, OpenAi, Picocodex, PicocodexBuilder, Tool, Tools};
 }
 
 #[cfg(not(target_family = "wasm"))]

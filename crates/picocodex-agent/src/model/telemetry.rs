@@ -191,7 +191,11 @@ impl RunStats {
         self.retry_backoff_duration_ns = delta.retry_backoff_duration_ns;
     }
 
-    pub(super) fn turn_usage(&self, fast_mode: bool) -> TurnUsage {
+    pub(super) const fn turn_usage(
+        &self,
+        model: picocodex_oai_api::Model,
+        fast_mode: bool,
+    ) -> TurnUsage {
         TurnUsage::from_counts(
             crate::usage::TurnUsageCounts {
                 input_tokens: self.usage.input_tokens + self.warmup_usage.input_tokens,
@@ -205,6 +209,7 @@ impl RunStats {
                 total_tokens: self.usage.total_tokens + self.warmup_usage.total_tokens,
                 reported: self.usage.reported || self.warmup_usage.reported,
             },
+            model,
             fast_mode,
         )
     }
@@ -214,13 +219,14 @@ pub(super) fn terminal_payload<'a>(
     terminal_status: &'static str,
     elapsed: Duration,
     config: &'a ModelConfig,
+    model: picocodex_oai_api::Model,
     thinking: Thinking,
     stats: &'a RunStats,
     usage: &'a TurnUsage,
 ) -> TerminalPayload<'a> {
     TerminalPayload {
         status: terminal_status,
-        model: picocodex_oai_api::MODEL,
+        model: model.as_str(),
         reasoning_mode: config.reasoning_mode.as_str(),
         effort: thinking.as_str(),
         transport: config.responses_transport.as_str(),
@@ -228,9 +234,8 @@ pub(super) fn terminal_payload<'a>(
         duration_ms: duration_ms(elapsed),
         duration_ns: duration_ns(elapsed),
         stats,
-        estimated_cost: usage.estimated_cost(),
-        cost_usd: usage.estimated_cost().map(|cost| cost.amount().as_f64()),
-        cost_status: usage.cost_status(),
+        service_tier: usage.service_tier().as_str(),
+        usage_reported: usage.reported(),
     }
 }
 
@@ -270,10 +275,8 @@ pub(super) struct TerminalPayload<'a> {
     duration_ns: u64,
     #[serde(flatten)]
     stats: &'a RunStats,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    estimated_cost: Option<&'a picocodex_oai_api::pricing::EstimatedUsdCost>,
-    cost_usd: Option<f64>,
-    cost_status: picocodex_oai_api::pricing::CostStatus,
+    service_tier: &'static str,
+    usage_reported: bool,
 }
 
 fn duration_ms(duration: Duration) -> u64 {

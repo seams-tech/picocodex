@@ -1,7 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use picocodex_oai_api::{
-    MODEL,
+    Model,
     responses::{MessageRole, ResponseItem},
 };
 
@@ -18,12 +18,21 @@ const SESSION_SNAPSHOT_VERSION: u32 = 1;
 #[derive(Clone)]
 pub(crate) struct CommittedSession {
     lineage_id: Arc<str>,
+    selected_model: Model,
     model: ModelCheckpoint,
 }
 
 impl CommittedSession {
-    pub(crate) const fn new(lineage_id: Arc<str>, model: ModelCheckpoint) -> Self {
-        Self { lineage_id, model }
+    pub(crate) const fn new(
+        lineage_id: Arc<str>,
+        selected_model: Model,
+        model: ModelCheckpoint,
+    ) -> Self {
+        Self {
+            lineage_id,
+            selected_model,
+            model,
+        }
     }
 
     pub(crate) fn lineage_id(&self) -> &str {
@@ -37,7 +46,7 @@ impl CommittedSession {
     pub(crate) fn snapshot(&self) -> SessionSnapshot {
         SessionSnapshot {
             version: SESSION_SNAPSHOT_VERSION,
-            model: MODEL.to_owned(),
+            model: self.selected_model.as_str().to_owned(),
             lineage_id: self.lineage_id.to_string(),
             prompt_cache_key: self.model.prompt_cache_key().to_owned(),
             workspace: self.model.workspace().to_owned(),
@@ -106,12 +115,11 @@ impl SessionSnapshot {
                 self.version
             )));
         }
-        if self.model != MODEL {
-            return Err(PicocodexError::InvalidSessionSnapshot(format!(
-                "snapshot model {} is incompatible with {MODEL}",
-                self.model
-            )));
-        }
+        let model = self.model.parse::<Model>().map_err(|error| {
+            PicocodexError::InvalidSessionSnapshot(format!(
+                "snapshot model is unsupported: {error}"
+            ))
+        })?;
         if self.lineage_id.trim().is_empty() {
             return Err(PicocodexError::InvalidSessionSnapshot(
                 "cache lineage must not be empty".to_owned(),
@@ -163,6 +171,7 @@ impl SessionSnapshot {
             })
             .transpose()?;
         Ok(SessionResume {
+            model,
             lineage_id,
             prompt_cache_key,
             workspace: self.workspace,
@@ -176,6 +185,7 @@ impl SessionSnapshot {
 }
 
 pub(crate) struct SessionResume {
+    pub(crate) model: Model,
     pub(crate) lineage_id: Arc<str>,
     pub(crate) prompt_cache_key: Arc<str>,
     pub(crate) workspace: String,

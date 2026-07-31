@@ -118,8 +118,27 @@ async fn serialized_session_resumes_over_ephemeral_https() -> Result<()> {
         .prompt_cache_key("durable-cache")
         .build()?;
     let first = agent.prompt("first prompt").await?.result().await?;
-    let snapshot = serde_json::from_slice(&serde_json::to_vec(&first.snapshot())?)?;
+    let snapshot: SessionSnapshot =
+        serde_json::from_slice(&serde_json::to_vec(&first.snapshot())?)?;
     drop((agent, events, first));
+
+    let mismatched = Picocodex::builder(
+        OpenAi::builder("test-key")
+            .transport(ResponsesTransport::Https)
+            .store(false)
+            .api_base_url(endpoint.clone())
+            .build()?,
+    )
+    .model(Model::Luna)
+    .instructions("durable instructions")
+    .thinking(Thinking::Low)
+    .resume(snapshot.clone())
+    .build();
+    assert!(matches!(
+        mismatched,
+        Err(PicocodexError::InvalidSessionSnapshot(message))
+            if message.contains("does not match configured model")
+    ));
 
     let openai = OpenAi::builder("test-key")
         .transport(ResponsesTransport::Https)

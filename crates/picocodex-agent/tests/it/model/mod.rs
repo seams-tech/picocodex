@@ -23,12 +23,12 @@ use picocodex_agent::{
     transport::{ResponsesError, ResponsesHistory, ResponsesTransport},
 };
 use picocodex_oai_api::{
+    Model,
     auth::{
         OpenAiAuth, OpenAiAuthError, OpenAiAuthFuture, OpenAiAuthMode, OpenAiAuthSnapshot,
         OpenAiAuthSource,
     },
     events::AgentEventKind,
-    pricing::CostStatus,
     session::SessionId,
 };
 
