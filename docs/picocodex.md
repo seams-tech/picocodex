@@ -653,9 +653,10 @@ NF0 ends with a written compatibility decision. Do not assume snapshots from
 - [x] Add one exhaustive adapter selector with the current Nanocodex branch.
 - [x] Keep Nanocodex names out of Actor lifecycle, surfaces, Cue processing,
   billing, placement, and canonical event contracts.
-- [x] Prove fresh turn, event acceptance, direct tool, Code Mode, steering,
-  cancellation, checkpoint, close, restore, and continuation through adapter
-  conformance tests.
+- [x] Prove fresh turn, event acceptance, direct tool, Code Mode, cancellation,
+  checkpoint, close, restore, and continuation through the adapter operating
+  test; keep steering explicit and return `embedded_harness_steer_unsupported`
+  from the current backend.
 - [x] Prove the existing Slack and Cue fixtures have unchanged accepted events,
   effects, terminal results, and placement decisions.
 - [x] Add type fixtures rejecting cross-backend checkpoints, incomplete
@@ -678,43 +679,52 @@ through the sole adapter branch.
 
 ### NF2 — Import and prune Picocodex
 
-- [ ] Clone `gakonst/nanocodex` at `8516800…` into a temporary import
-  directory.
-- [ ] Verify the checked-out tree and record its archive checksum.
+- [x] Clone `gakonst/nanocodex` at `3d4548b…`, then apply the selected PR #75
+  commits through `8516800…` in a temporary import repository.
+- [x] Verify the checked-out tree and record its archive checksum.
 - [ ] Store the immutable source archive in Satyr-controlled artifact storage.
-- [ ] Copy the license files and create `UPSTREAM.md` and
+- [x] Copy the license files and create `UPSTREAM.md` and
   `SOURCE_IMPORT.json`.
-- [ ] Remove the imported `.git` directory before initializing Picocodex.
-- [ ] Generate native and Wasm reachability reports with `cargo metadata`.
-- [ ] Remove unrelated workspace members, sources, manifests, CI jobs, and
+- [x] Remove the imported `.git` directory before initializing Picocodex.
+- [x] Generate native and Wasm reachability reports with `cargo metadata` and
+  `cargo tree`.
+- [x] Remove unrelated workspace members, sources, manifests, CI jobs, and
   dependencies.
-- [ ] Rename every retained package, crate, module, symbol, host global,
+- [x] Rename every retained package, crate, module, symbol, host global,
   artifact, protocol identifier, fixture, and current document to Picocodex.
-- [ ] Regenerate bindings and lockfiles under the Picocodex identity.
-- [ ] Prove `nanocodex` appears only in the provenance allowlist.
-- [ ] Save the import-to-pruned-tree patch and its checksum.
-- [ ] Add a concise Picocodex README and upstream provenance record.
-- [ ] Build the retained Rust library for native and Wasm targets.
-- [ ] Build and package the retained JavaScript/Wasm binding.
-- [ ] Run retained upstream tests.
-- [ ] Initialize a new local Git repository after pruning and renaming pass.
-- [ ] Create the initial repository commit only after pruning and verification.
+- [x] Regenerate bindings and lockfiles under the Picocodex identity.
+- [x] Prove `nanocodex` appears only in the provenance allowlist.
+- [x] Save the import-to-pruned-tree patch and its checksum.
+- [x] Add a concise Picocodex README and upstream provenance record.
+- [x] Build the retained Rust library for native and Wasm targets.
+- [x] Build and package the retained JavaScript/Wasm binding.
+- [x] Run retained upstream tests.
+- [x] Initialize a new local Git repository after pruning and renaming pass.
+- [x] Create the initial repository commit only after pruning and verification.
 - [ ] Create the independent `seams-tech/picocodex` GitHub repository.
 - [ ] Push the verified initial commit and make `main` the protected default
   branch.
 - [ ] Tag the first immutable Picocodex baseline.
 
-The baseline commit contains the Picocodex identity, pruning, and required
-build repair. It contains no compatibility names or Satyr-specific runtime
-feature. The provenance files make its relationship to the exact imported
-upstream tree reviewable without retaining upstream Git metadata.
+The baseline commit contains the Picocodex identity, pruning, required build
+repair, host-managed authentication, and Hybrid tool exposure. It contains no
+compatibility identity or Satyr product state. The provenance files and binary
+transformation patch keep its relationship to the exact imported upstream tree
+reviewable without retaining upstream Git metadata.
+
+NF2's local repository work completed on 2026-07-31 at root commit
+`a621800`. The untouched upstream bundle, source archive, dependency reports,
+and 31.9 MB binary transformation patch are preserved under
+`~/Dev/rust/picocodex-upstream-preservation`. Publication remains pending
+remote repository creation, artifact-storage upload, branch protection, and
+the immutable baseline tag.
 
 ### NF3 — Add the Satyr host contract
 
-- [ ] Retain PR #75's asynchronous host-owned WebSocket upgrades.
-- [ ] Retain bearer and `host_managed` authentication as invalid-by-construction
+- [x] Retain PR #75's asynchronous host-owned WebSocket upgrades.
+- [x] Retain bearer and `host_managed` authentication as invalid-by-construction
   alternatives.
-- [ ] Retain direct hosted tool definitions and execution.
+- [x] Retain direct hosted tool definitions and execution.
 - [ ] Port PR #80's closed model identity into the retained Picocodex crates.
 - [ ] Bind the selected model for the complete checkpoint lineage.
 - [ ] Preserve model identity through turns, compaction, snapshots, restore,
@@ -725,16 +735,17 @@ upstream tree reviewable without retaining upstream Git metadata.
 - [ ] Leave provider rates and monetary calculations in Satyr's versioned
   accounting boundary.
 - [ ] Exclude PR #80's foreign-rollout fallbacks and removed product consumers.
-- [ ] Add `HostedToolExposure::Hybrid`.
+- [x] Add `HostedToolExposure::Hybrid`.
 - [ ] Reject duplicate, closed, invalid, and unauthorized socket upgrades.
 - [ ] Reject unadvertised direct tool calls.
 - [ ] Preserve typed tool-call and tool-result events.
 - [ ] Preserve steering, cancellation, queueing, and safe historical forks.
-- [ ] Add deterministic tests for Code, Direct, and Hybrid exposure.
-- [ ] Add a Wasm regression proving a direct tool call uses no evaluator.
-- [ ] Add a Wasm regression proving Hybrid retains Code Mode.
+- [x] Add deterministic tests for Code, Direct, and Hybrid exposure.
+- [x] Add a Wasm regression proving a direct tool call uses no evaluator.
+- [x] Add a Wasm regression proving Hybrid retains Code Mode.
 
-Commit NF3 separately from pruning. Tag the exact revision intended for Satyr.
+Complete the remaining NF3 model and accounting work in a focused follow-up
+commit. Tag the exact revision intended for Satyr.
 
 ### NF4 — Integrate Picocodex into Satyr
 
