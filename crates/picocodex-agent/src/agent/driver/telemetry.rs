@@ -46,7 +46,7 @@ pub(super) fn agent_turn_span(
         agent.origin = origin.kind,
         agent.depth = origin.depth,
         trace.parented = parented,
-        model = picocodex_oai_api::MODEL,
+        model = reasoning.model.as_str(),
         reasoning.mode = reasoning.mode.as_str(),
         reasoning.effort = reasoning.effort.as_str(),
         thinking = reasoning.effort.as_str(),
@@ -58,9 +58,8 @@ pub(super) fn agent_turn_span(
         usage.output_tokens = tracing::field::Empty,
         usage.reasoning_output_tokens = tracing::field::Empty,
         usage.total_tokens = tracing::field::Empty,
-        cost.usd = tracing::field::Empty,
-        cost.status = tracing::field::Empty,
-        cost.service_tier = tracing::field::Empty,
+        usage.service_tier = tracing::field::Empty,
+        usage.reported = tracing::field::Empty,
         status = tracing::field::Empty,
     );
     if let Some(parent_session_id) = &origin.parent_session_id {
@@ -71,6 +70,7 @@ pub(super) fn agent_turn_span(
 
 #[derive(Clone, Copy)]
 pub(super) struct ReasoningSettings {
+    pub(super) model: Model,
     pub(super) mode: ReasoningMode,
     pub(super) effort: Thinking,
 }

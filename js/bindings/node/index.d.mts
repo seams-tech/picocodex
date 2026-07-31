@@ -1,8 +1,7 @@
 export { Actions } from "../index.mjs";
 export type {
   AgentEvent,
-  CostStatus,
-  EstimatedUsdCost,
+  Model,
   PromptInput,
   PromptItem,
   ReasoningMode,

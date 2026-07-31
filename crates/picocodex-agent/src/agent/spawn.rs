@@ -23,6 +23,7 @@ where
     let is_resume = resume.is_some();
     let (lineage_id, prompt_cache_key, initial_resume) = if let Some(snapshot) = resume {
         let SessionResume {
+            model,
             lineage_id,
             prompt_cache_key: restored_cache_key,
             workspace,
@@ -32,6 +33,12 @@ where
             context_baseline,
             checkpoint,
         } = snapshot.into_resume()?;
+        if model != config.model {
+            return Err(PicocodexError::InvalidSessionSnapshot(format!(
+                "snapshot model {} does not match configured model {}",
+                model, config.model
+            )));
+        }
         if base_instructions
             .as_deref()
             .is_some_and(|stored| stored != config.system_prompt())

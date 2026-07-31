@@ -82,7 +82,7 @@ agent.shutdown().await?;
 - [`input`](picocodex_agent::input) contains prompts and multimodal user input.
 - [`session`](picocodex_agent::session) contains durable session identities and
   snapshots.
-- [`usage`](picocodex_agent::usage) contains token accounting and USD estimates.
+- [`usage`](picocodex_agent::usage) contains model-aware token accounting.
 - [`transport`](picocodex_agent::transport) exposes advanced Responses and
   Tower configuration.
 - [`tools`](picocodex_agent::tools) exposes the complete tool implementation

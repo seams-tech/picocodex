@@ -120,8 +120,6 @@ pub struct CompletedResponse {
     output: Arc<[ResponseItem]>,
     output_text: Arc<str>,
     usage: Option<Usage>,
-    estimated_cost: Option<crate::EstimatedUsdCost>,
-    cost_status: crate::CostStatus,
     end_turn: Option<bool>,
 }
 
@@ -157,21 +155,6 @@ impl CompletedResponse {
         self.usage.as_ref()
     }
 
-    /// Returns the automatic local USD estimate.
-    ///
-    /// Picocodex applies the built-in standard or priority
-    /// [`crate::MODEL`] rates. `None` means the provider omitted usage.
-    #[must_use]
-    pub const fn estimated_cost(&self) -> Option<&crate::EstimatedUsdCost> {
-        self.estimated_cost.as_ref()
-    }
-
-    /// Returns why an estimate is present or unavailable.
-    #[must_use]
-    pub const fn cost_status(&self) -> crate::CostStatus {
-        self.cost_status
-    }
-
     /// Returns whether the model affirmatively ended its logical turn.
     #[must_use]
     pub const fn end_turn(&self) -> Option<bool> {
@@ -194,8 +177,6 @@ impl fmt::Debug for CompletedResponse {
 #[derive(Clone)]
 pub struct CompletedCompaction {
     usage: Option<Usage>,
-    estimated_cost: Option<crate::EstimatedUsdCost>,
-    cost_status: crate::CostStatus,
 }
 
 impl CompletedCompaction {
@@ -203,18 +184,6 @@ impl CompletedCompaction {
     #[must_use]
     pub const fn usage(&self) -> Option<&Usage> {
         self.usage.as_ref()
-    }
-
-    /// Returns the automatic local USD estimate when usage was available.
-    #[must_use]
-    pub const fn estimated_cost(&self) -> Option<&crate::EstimatedUsdCost> {
-        self.estimated_cost.as_ref()
-    }
-
-    /// Returns why an estimate is present or unavailable.
-    #[must_use]
-    pub const fn cost_status(&self) -> crate::CostStatus {
-        self.cost_status
     }
 }
 
@@ -566,6 +535,7 @@ where
         candidate.shared_history(),
         candidate.delta_start(),
         previous_response_id.as_deref(),
+        session.model,
         session.thinking,
         session.fast_mode,
     );
@@ -597,13 +567,10 @@ where
         .final_message
         .unwrap_or_else(|| output_text(&output))
         .into();
-    let (estimated_cost, cost_status) = estimate_cost(response.usage.as_ref(), session.fast_mode);
     let completed = CompletedResponse {
         output,
         output_text,
         usage: response.usage,
-        estimated_cost,
-        cost_status,
         end_turn: response.end_turn,
     };
     turn.completed_generation = true;
@@ -698,6 +665,7 @@ where
         session.state.delta_start(),
         session.state.previous_response_id(),
         compaction::trigger(),
+        session.model,
         session.thinking,
         session.fast_mode,
     );
@@ -721,11 +689,8 @@ where
     session.state = candidate;
     session.canonical_context_reinjection_pending = !mid_turn;
 
-    let (estimated_cost, cost_status) = estimate_cost(response.usage.as_ref(), session.fast_mode);
     Ok(CompletedCompaction {
         usage: response.usage,
-        estimated_cost,
-        cost_status,
     })
 }
 
@@ -753,9 +718,6 @@ fn response_call_span<S>(
         usage.output_tokens = tracing::field::Empty,
         usage.reasoning_output_tokens = tracing::field::Empty,
         usage.total_tokens = tracing::field::Empty,
-        cost.usd = tracing::field::Empty,
-        cost.status = tracing::field::Empty,
-        cost.service_tier = tracing::field::Empty,
         error.class = tracing::field::Empty,
         status = tracing::field::Empty,
         duration_ns = tracing::field::Empty,
@@ -773,12 +735,7 @@ fn finish_create_span(
             if let Some(end_turn) = response.end_turn {
                 span.record("response.end_turn", end_turn);
             }
-            record_response_usage_and_cost(
-                span,
-                response.usage.as_ref(),
-                response.cost_status,
-                response.estimated_cost.as_ref(),
-            );
+            record_response_usage(span, response.usage.as_ref());
             finish_response_span(span, started_at, None);
         }
         Err(error) => finish_response_span(span, started_at, Some(error)),
@@ -792,24 +749,14 @@ fn finish_compaction_span(
 ) {
     match result {
         Ok(response) => {
-            record_response_usage_and_cost(
-                span,
-                response.usage.as_ref(),
-                response.cost_status,
-                response.estimated_cost.as_ref(),
-            );
+            record_response_usage(span, response.usage.as_ref());
             finish_response_span(span, started_at, None);
         }
         Err(error) => finish_response_span(span, started_at, Some(error)),
     }
 }
 
-fn record_response_usage_and_cost(
-    span: &tracing::Span,
-    usage: Option<&Usage>,
-    cost_status: crate::CostStatus,
-    estimated_cost: Option<&crate::EstimatedUsdCost>,
-) {
+fn record_response_usage(span: &tracing::Span, usage: Option<&Usage>) {
     if let Some(usage) = usage {
         span.record("usage.input_tokens", usage.input_tokens);
         span.record(
@@ -835,11 +782,6 @@ fn record_response_usage_and_cost(
                 .map_or(0, |details| details.reasoning_tokens),
         );
         span.record("usage.total_tokens", usage.total_tokens);
-    }
-    span.record("cost.status", cost_status.as_str());
-    if let Some(estimated_cost) = estimated_cost {
-        span.record("cost.usd", tracing::field::display(estimated_cost.amount()));
-        span.record("cost.service_tier", estimated_cost.service_tier().as_str());
     }
 }
 
@@ -867,26 +809,6 @@ fn finish_response_span(span: &tracing::Span, started_at: Instant, error: Option
     } else {
         span.record("status", "completed");
         span.record("otel.status_code", "OK");
-    }
-}
-
-pub(super) fn estimate_cost(
-    usage: Option<&Usage>,
-    fast_mode: bool,
-) -> (Option<crate::EstimatedUsdCost>, crate::CostStatus) {
-    match usage {
-        Some(usage) => (
-            Some(crate::pricing::estimate(
-                usage,
-                if fast_mode {
-                    crate::pricing::ServiceTier::Priority
-                } else {
-                    crate::pricing::ServiceTier::Standard
-                },
-            )),
-            crate::CostStatus::EstimatedFromUsage,
-        ),
-        None => (None, crate::CostStatus::UsageNotReported),
     }
 }
 

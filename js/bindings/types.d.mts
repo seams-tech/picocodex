@@ -1,5 +1,6 @@
 export type Thinking = "none" | "low" | "medium" | "high" | "xhigh" | "max";
 export type ReasoningMode = "standard" | "pro";
+export type Model = "gpt-5.6-sol" | "gpt-5.6-luna";
 
 export type PromptItem =
   | { type: "text"; text: string }
@@ -18,6 +19,7 @@ export type AgentEvent = {
 
 export type AgentOptions = {
   instructions?: string | undefined;
+  model?: Model | undefined;
   reasoningMode?: ReasoningMode | undefined;
   fastMode?: boolean | undefined;
   sessionId?: string | undefined;
@@ -26,23 +28,9 @@ export type AgentOptions = {
   resume?: SessionSnapshot | undefined;
 };
 
-export type EstimatedUsdCost = Readonly<{
-  usd: string;
-  input_usd: string;
-  cached_input_usd: string;
-  cache_write_input_usd: string;
-  output_usd: string;
-  service_tier: "standard" | "priority";
-}>;
-
-export type CostStatus =
-  | "estimated_from_usage"
-  | "usage_not_reported"
-  | "other";
-
 export type SessionSnapshot = Readonly<{
   version: number;
-  model: string;
+  model: Model;
   lineage_id: string;
   prompt_cache_key: string;
   workspace: string;
@@ -52,14 +40,15 @@ export type SessionSnapshot = Readonly<{
 }>;
 
 export type TurnUsage = Readonly<{
+  model: Model;
+  service_tier: "standard" | "priority";
+  reported: boolean;
   input_tokens: number;
   cached_input_tokens: number;
   cache_write_input_tokens: number;
   output_tokens: number;
   reasoning_output_tokens: number;
   total_tokens: number;
-  estimated_cost: EstimatedUsdCost | null;
-  cost_status: CostStatus;
 }>;
 
 export type ForkOptions = { at?: TurnResult | undefined };

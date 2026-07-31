@@ -145,6 +145,7 @@ export function toWasmConfig(options = {}) {
     throw new TypeError("auth.api_key must be a non-empty string");
   }
   const config = { auth };
+  copy(config, "model", options.model);
   copy(config, "thinking", options.thinking);
   copy(config, "reasoning_mode", options.reasoningMode);
   copy(config, "fast_mode", options.fastMode);

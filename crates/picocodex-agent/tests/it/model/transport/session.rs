@@ -38,12 +38,12 @@ async fn a_turn_stream_mirrors_one_turn_and_await_retains_its_result() -> Result
     assert_eq!(result.usage().output_tokens(), 2);
     assert_eq!(result.usage().reasoning_output_tokens(), 1);
     assert_eq!(result.usage().total_tokens(), 12);
-    let estimated_cost = result
-        .usage()
-        .estimated_cost()
-        .expect("provider usage should produce an estimate");
-    assert_eq!(estimated_cost.amount().decimal(), "0.0000875");
-    assert_eq!(result.usage().cost_status(), CostStatus::EstimatedFromUsage);
+    assert_eq!(result.usage().model(), picocodex_oai_api::Model::Sol);
+    assert_eq!(
+        result.usage().service_tier(),
+        picocodex_oai_api::ServiceTier::Standard
+    );
+    assert!(result.usage().reported());
 
     drop(agent);
     let mut session = Vec::new();
@@ -72,28 +72,12 @@ async fn a_turn_stream_mirrors_one_turn_and_await_retains_its_result() -> Result
             "terminal event should have a typed completed projection"
         ));
     };
-    assert_eq!(
-        typed_terminal
-            .estimated_cost
-            .as_ref()
-            .expect("terminal should retain the automatic estimate")
-            .amount()
-            .decimal(),
-        "0.0000875"
-    );
+    assert_eq!(typed_terminal.model, "gpt-5.6-sol");
+    assert_eq!(typed_terminal.service_tier, "standard");
+    assert!(typed_terminal.usage_reported);
     let terminal_payload = terminal.decode_payload::<Value>()?;
-    assert_eq!(
-        terminal_payload["estimated_cost"]["usd"],
-        json!("0.0000875")
-    );
-    assert_eq!(
-        terminal_payload["estimated_cost"]["service_tier"],
-        json!("standard")
-    );
-    assert_eq!(
-        terminal_payload["cost_status"],
-        json!("estimated_from_usage")
-    );
+    assert_eq!(terminal_payload["service_tier"], json!("standard"));
+    assert_eq!(terminal_payload["usage_reported"], json!(true));
 
     timeout(std::time::Duration::from_secs(5), server)
         .await

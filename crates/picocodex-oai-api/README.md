@@ -29,17 +29,10 @@ let completed = turn
     .await?;
 
 println!("{}", completed.output_text());
-if let Some(cost) = completed.estimated_cost() {
-    println!("estimated {}", cost.amount());
-}
+println!("{} tokens", completed.usage().map_or(0, |usage| usage.total_tokens));
 # Ok(())
 # }
 ```
-
-USD estimates require no pricing configuration. This crate supports only
-`gpt-5.6-sol` and applies OpenAI's published standard rates, or its priority
-rates when [`OpenAiBuilder::fast_mode`] is enabled. If the provider omits
-usage, [`CompletedResponse::estimated_cost`] returns `None`.
 
 ## ChatGPT subscription login
 
@@ -137,11 +130,11 @@ replacement without embedding agent policy.
 ## Contract-only builds
 
 The default `client` feature remains the complete OpenAI boundary, including
-authentication, managed sessions, Tower services, transports, telemetry, and
-pricing. Process companions that only need the dependency-light prompt,
-response-item, and tool wire contracts may disable default features. This
-keeps one canonical contract without linking an unused network client; it does
-not create an alternate provider or transport implementation.
+authentication, managed sessions, Tower services, transports, and telemetry.
+Process companions that only need the dependency-light prompt, response-item,
+and tool wire contracts may disable default features. This keeps one canonical
+contract without linking an unused network client; it does not create an
+alternate provider or transport implementation.
 
 ## Tools and managed sessions
 
@@ -166,8 +159,8 @@ prominent:
   batteries-included runtime and implementations.
 - [`auth`] owns API-key credentials plus native managed ChatGPT login,
   persistence, refresh, and logout.
-- [`pricing`] and [`events`] expose automatic `gpt-5.6-sol` cost estimates and
-  lifecycle-event components.
+- [`events`] exposes lifecycle-event components and provider-reported token
+  usage. The embedding host owns versioned monetary rates.
 - [`tower`] contains the generic attempt, response, and retry contracts.
 - [`transport`] contains WebSocket/HTTPS selection, replay policy, transport
   failures, and connection statistics.

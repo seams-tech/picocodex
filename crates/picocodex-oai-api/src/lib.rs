@@ -16,9 +16,6 @@ pub mod auth;
 pub mod events;
 #[cfg(feature = "client")]
 mod openai;
-/// Automatic `gpt-5.6-sol` USD estimates from provider token usage.
-#[cfg(feature = "client")]
-pub mod pricing;
 /// Complete typed request, event, and item model for the Responses protocol.
 pub mod responses;
 /// Managed session identities, inputs, and compaction results.
@@ -50,8 +47,6 @@ pub(crate) use events::{
 pub(crate) use openai::ModelConfig;
 #[cfg(feature = "client")]
 pub use openai::{OpenAi, OpenAiBuilder, OpenAiError};
-#[cfg(feature = "client")]
-pub(crate) use pricing::{CostStatus, EstimatedUsdCost};
 pub use responses::ResponseEvent;
 pub(crate) use responses::ResponseItem;
 #[cfg(feature = "client")]
@@ -135,10 +130,75 @@ pub mod __private {
     }
 }
 
-/// The single Responses model contract supported by this SDK.
-pub const MODEL: &str = "gpt-5.6-sol";
+/// The default Responses model used by this SDK.
+pub const MODEL: &str = Model::Sol.as_str();
 
-/// Context-window size of the supported Responses model contract.
+/// Supported Responses model contracts.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum Model {
+    /// GPT-5.6 Sol.
+    #[default]
+    #[serde(rename = "gpt-5.6-sol")]
+    Sol,
+    /// GPT-5.6 Luna.
+    #[serde(rename = "gpt-5.6-luna")]
+    Luna,
+}
+
+/// Provider service tier selected for a model request.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ServiceTier {
+    /// Standard processing.
+    #[default]
+    Standard,
+    /// Priority processing selected by fast mode.
+    Priority,
+}
+
+impl ServiceTier {
+    /// Returns the Responses API service-tier identifier.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Standard => "standard",
+            Self::Priority => "priority",
+        }
+    }
+}
+
+impl Model {
+    /// Returns the Responses API model identifier.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sol => "gpt-5.6-sol",
+            Self::Luna => "gpt-5.6-luna",
+        }
+    }
+}
+
+impl fmt::Display for Model {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for Model {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "gpt-5.6-sol" | "sol" => Ok(Self::Sol),
+            "gpt-5.6-luna" | "luna" => Ok(Self::Luna),
+            _ => Err(format!(
+                "invalid model {value:?}; expected gpt-5.6-sol or gpt-5.6-luna"
+            )),
+        }
+    }
+}
+
+/// Context-window size of the supported Responses model contracts.
 pub const CONTEXT_WINDOW_TOKENS: u64 = 272_000;
 
 /// User input for one agent turn.
@@ -454,7 +514,16 @@ impl FromStr for Thinking {
 mod tests {
     use serde_json::json;
 
-    use super::{Prompt, ReasoningMode, Thinking};
+    use super::{Model, Prompt, ReasoningMode, Thinking};
+
+    #[test]
+    fn model_parses_only_supported_api_and_short_names() {
+        assert_eq!("sol".parse(), Ok(Model::Sol));
+        assert_eq!("gpt-5.6-sol".parse(), Ok(Model::Sol));
+        assert_eq!("luna".parse(), Ok(Model::Luna));
+        assert_eq!("gpt-5.6-luna".parse(), Ok(Model::Luna));
+        assert!("gpt-5".parse::<Model>().is_err());
+    }
 
     #[test]
     fn reasoning_configuration_parses_every_public_value() {

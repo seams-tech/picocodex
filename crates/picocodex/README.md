@@ -40,11 +40,16 @@ not wait for the turn's optional event stream to be consumed. Follow-on prompts
 reuse the same retained context and transport without asking the caller to
 manage response IDs or history.
 
-## Usage and USD estimates
+`gpt-5.6-sol` is the default; `.model(Model::Luna)` selects
+`gpt-5.6-luna` when creating the agent. The selected model remains fixed for
+the thread so follow-on turns can continue from the provider checkpoint without
+replaying the complete retained context.
 
-Every completed turn reports aggregate provider usage. Cost remains explicit:
-Picocodex applies OpenAI's published `gpt-5.6-sol` standard or priority rates
-automatically, while omitted provider usage remains distinguishable from zero.
+## Usage
+
+Every completed turn reports the selected model, requested service tier, and
+aggregate provider token usage. The embedding application owns monetary
+calculation.
 
 ```rust,no_run
 use picocodex::{Picocodex, OpenAi};
@@ -56,11 +61,12 @@ let (agent, _events) = Picocodex::builder(openai)
     .build()?;
 
 let result = agent.prompt("Explain the identifier req_7f3.").await?.await?;
-if let Some(cost) = result.usage().estimated_cost() {
-    println!("estimated {}", cost.amount());
-} else {
-    println!("cost unavailable: {}", result.usage().cost_status().as_str());
-}
+println!(
+    "{} {} {} tokens",
+    result.usage().model(),
+    result.usage().service_tier().as_str(),
+    result.usage().total_tokens(),
+);
 agent.shutdown().await?;
 # Ok(())
 # }

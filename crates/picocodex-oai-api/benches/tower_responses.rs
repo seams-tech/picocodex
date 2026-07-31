@@ -11,10 +11,9 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use picocodex_oai_api::{
     __private::EventSink,
     events::{AgentEvent, AgentEventKind, monotonic_now_ns},
-    pricing::{ServiceTier, estimate},
     responses::{
-        ContentItem, FunctionOutputBody, FunctionOutputContent, InputTokenDetails, MessageRole,
-        ResponseItem, ServerEvent, Usage,
+        ContentItem, FunctionOutputBody, FunctionOutputContent, MessageRole, ResponseItem,
+        ServerEvent,
     },
     transport::EncodedRequest,
 };
@@ -406,26 +405,6 @@ fn agent_event_encoding(criterion: &mut Criterion) {
             },
         );
     }
-    group.finish();
-}
-
-fn pricing_estimation(criterion: &mut Criterion) {
-    let usage = Usage {
-        input_tokens: 128_000,
-        input_tokens_details: Some(InputTokenDetails {
-            cached_tokens: 96_000,
-            cache_write_tokens: 8_000,
-        }),
-        output_tokens: 16_000,
-        output_tokens_details: None,
-        total_tokens: 144_000,
-    };
-    let mut group = criterion.benchmark_group("pricing_estimation");
-    group.sample_size(100);
-    group.measurement_time(Duration::from_secs(3));
-    group.bench_function("aggregate_turn_usage", |bencher| {
-        bencher.iter(|| estimate(black_box(&usage), black_box(ServiceTier::Standard)));
-    });
     group.finish();
 }
 
@@ -899,7 +878,6 @@ criterion_group!(
     responses_lite_metadata_encoding,
     event_decoding,
     agent_event_encoding,
-    pricing_estimation,
     timed_agent_event_delivery,
     retained_agent_event_trace,
     retained_response_event_pipeline,

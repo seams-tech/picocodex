@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use js_sys::Promise;
 use picocodex::oai::auth::OpenAiAuth;
 use picocodex::{
-    AgentEvents, OpenAi, Picocodex as RustPicocodex, ReasoningMode, Thinking, TurnControl,
+    AgentEvents, Model, OpenAi, Picocodex as RustPicocodex, ReasoningMode, Thinking, TurnControl,
     TurnResult,
     agent::{
         input::{Prompt, UserInput},
@@ -141,6 +141,8 @@ impl CodeModeHost for JavaScriptCodeModeHost {
 #[serde(deny_unknown_fields)]
 struct WasmConfig {
     auth: WasmAuthConfig,
+    #[serde(default = "default_model")]
+    model: String,
     #[serde(default = "default_thinking")]
     thinking: String,
     #[serde(default = "default_reasoning_mode")]
@@ -187,12 +189,14 @@ impl WasmPicocodex {
             .map_err(|error| js_error(format!("invalid Picocodex configuration: {error}")))?;
         validate(&config)?;
 
+        let model = config.model.parse::<Model>().map_err(js_error)?;
         let thinking = config.thinking.parse::<Thinking>().map_err(js_error)?;
         let reasoning_mode = config
             .reasoning_mode
             .parse::<ReasoningMode>()
             .map_err(js_error)?;
         let openai = OpenAi::builder(auth(&config.auth))
+            .model(model)
             .thinking(thinking)
             .reasoning_mode(reasoning_mode)
             .fast_mode(config.fast_mode)
@@ -587,6 +591,10 @@ fn auth(config: &WasmAuthConfig) -> OpenAiAuth {
 
 fn default_thinking() -> String {
     "high".to_owned()
+}
+
+fn default_model() -> String {
+    Model::default().to_string()
 }
 
 fn default_reasoning_mode() -> String {

@@ -438,19 +438,14 @@ async fn completed_response_accepts_null_usage() -> Result<()> {
     assert!(output.contains("\"model.call.completed\""));
     assert!(output.contains("\"usage\":null"));
     assert!(output.contains("\"run.completed\""));
-    assert!(result.usage().estimated_cost().is_none());
-    assert_eq!(result.usage().cost_status(), CostStatus::UsageNotReported);
+    assert!(!result.usage().reported());
     let terminal: Value = serde_json::from_str(
         output
             .lines()
             .find(|line| line.contains("\"type\":\"run.completed\""))
             .ok_or_else(|| eyre!("missing terminal event"))?,
     )?;
-    assert_eq!(
-        terminal["payload"]["cost_status"],
-        json!("usage_not_reported")
-    );
-    assert!(terminal["payload"]["estimated_cost"].is_null());
+    assert_eq!(terminal["payload"]["usage_reported"], json!(false));
     std::fs::remove_dir_all(workspace)?;
     Ok(())
 }

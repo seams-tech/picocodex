@@ -16,7 +16,7 @@ mod model;
 mod prompt_cache;
 /// Durable agent session identities and snapshots.
 pub mod session;
-/// Per-turn token accounting and USD estimates.
+/// Per-turn model and token accounting.
 pub mod usage;
 
 pub use agent::{
@@ -24,13 +24,13 @@ pub use agent::{
 };
 pub use error::{PicocodexError, Result};
 pub use picocodex_oai_api::{
-    OpenAi, ReasoningMode, ResponseError, ResponseErrorKind, Thinking, events::AgentEvents,
+    Model, OpenAi, ReasoningMode, ResponseError, ResponseErrorKind, Thinking, events::AgentEvents,
 };
 #[cfg(not(target_family = "wasm"))]
 #[cfg_attr(docsrs, doc(cfg(not(target_family = "wasm"))))]
 pub use picocodex_tools::tool;
 pub use picocodex_tools::{Tool, Tools};
-pub use usage::{CostStatus, EstimatedUsdCost, ServiceTier, TurnUsage, UsdAmount};
+pub use usage::{ServiceTier, TurnUsage};
 
 /// Complete typed lifecycle events emitted by an agent.
 pub mod events {
