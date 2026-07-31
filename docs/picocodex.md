@@ -701,10 +701,10 @@ through the sole adapter branch.
 - [x] Run retained upstream tests.
 - [x] Initialize a new local Git repository after pruning and renaming pass.
 - [x] Create the initial repository commit only after pruning and verification.
-- [ ] Create the independent `seams-tech/picocodex` GitHub repository.
-- [ ] Push the verified initial commit and make `main` the protected default
+- [x] Create the independent `seams-tech/picocodex` GitHub repository.
+- [x] Push the verified initial commit and make `main` the protected default
   branch.
-- [ ] Tag the first immutable Picocodex baseline.
+- [x] Tag the first immutable Picocodex baseline.
 
 The baseline commit contains the Picocodex identity, pruning, required build
 repair, host-managed authentication, and Hybrid tool exposure. It contains no
@@ -712,12 +712,12 @@ compatibility identity or Satyr product state. The provenance files and binary
 transformation patch keep its relationship to the exact imported upstream tree
 reviewable without retaining upstream Git metadata.
 
-NF2's local repository work completed on 2026-07-31 at root commit
-`a621800`. The untouched upstream bundle, source archive, dependency reports,
-and 31.9 MB binary transformation patch are preserved under
-`~/Dev/rust/picocodex-upstream-preservation`. Publication remains pending
-remote repository creation, artifact-storage upload, branch protection, and
-the immutable baseline tag.
+NF2 completed on 2026-07-31. The root import is `a621800`, the import
+documentation is `36c3e3c`, and immutable tag `import-2026-07-31` identifies
+the published baseline. The upstream bundle, source archive, dependency
+reports, and binary transformation patch are preserved in Satyr's
+content-addressed `satyr-archive` storage. `main` requires review, linear
+history, and blocks force pushes and deletion.
 
 ### NF3 — Add the Satyr host contract
 
@@ -725,27 +725,29 @@ the immutable baseline tag.
 - [x] Retain bearer and `host_managed` authentication as invalid-by-construction
   alternatives.
 - [x] Retain direct hosted tool definitions and execution.
-- [ ] Port PR #80's closed model identity into the retained Picocodex crates.
-- [ ] Bind the selected model for the complete checkpoint lineage.
-- [ ] Preserve model identity through turns, compaction, snapshots, restore,
+- [x] Port PR #80's closed model identity into the retained Picocodex crates.
+- [x] Bind the selected model for the complete checkpoint lineage.
+- [x] Preserve model identity through turns, compaction, snapshots, restore,
   forks, prompt-cache keys, usage events, and telemetry.
-- [ ] Reject unsupported models and restore-time model mismatches.
-- [ ] Emit authoritative model, service tier, and token counts for Satyr
+- [x] Reject unsupported models and restore-time model mismatches.
+- [x] Emit authoritative model, service tier, and token counts for Satyr
   accounting.
-- [ ] Leave provider rates and monetary calculations in Satyr's versioned
+- [x] Leave provider rates and monetary calculations in Satyr's versioned
   accounting boundary.
-- [ ] Exclude PR #80's foreign-rollout fallbacks and removed product consumers.
+- [x] Exclude PR #80's foreign-rollout fallbacks and removed product consumers.
 - [x] Add `HostedToolExposure::Hybrid`.
-- [ ] Reject duplicate, closed, invalid, and unauthorized socket upgrades.
-- [ ] Reject unadvertised direct tool calls.
-- [ ] Preserve typed tool-call and tool-result events.
-- [ ] Preserve steering, cancellation, queueing, and safe historical forks.
+- [x] Reject duplicate, closed, invalid, and unauthorized socket upgrades.
+- [x] Reject unadvertised direct tool calls.
+- [x] Preserve typed tool-call and tool-result events.
+- [x] Preserve steering, cancellation, queueing, and safe historical forks.
 - [x] Add deterministic tests for Code, Direct, and Hybrid exposure.
 - [x] Add a Wasm regression proving a direct tool call uses no evaluator.
 - [x] Add a Wasm regression proving Hybrid retains Code Mode.
 
-Complete the remaining NF3 model and accounting work in a focused follow-up
-commit. Tag the exact revision intended for Satyr.
+NF3 completed on 2026-07-31 in `3065531`. The retained Rust suite, Wasm build,
+36 JavaScript/Wasm behavior tests, three performance checks, TypeScript
+surface, package validation, formatting, and Clippy all pass. Tag the reviewed
+NF3 revision intended for Satyr after the protected-branch merge.
 
 ### NF4 — Integrate Picocodex into Satyr
 
