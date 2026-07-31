@@ -40,5 +40,6 @@ npm test --prefix js/bindings
 - `crates/picocodex`: public Rust facade.
 - `js/bindings`: Node and Worker/browser Wasm bindings.
 
-See [UPSTREAM.md](UPSTREAM.md) and [SOURCE_IMPORT.json](SOURCE_IMPORT.json) for
-the independently preserved upstream provenance.
+## License
+
+Picocodex is available under the MIT License or Apache License 2.0.
