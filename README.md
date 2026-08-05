@@ -8,6 +8,15 @@ The primary target is Rust compiled to `wasm32-unknown-unknown` and embedded in
 a Cloudflare Worker or Durable Object. Native Rust and Node bindings remain
 available for focused development and differential testing.
 
+## Origins
+
+Picocodex is a lightweight fork of
+[Nanocodex](https://github.com/gakonst/nanocodex), whose agent architecture and
+typed Rust APIs provide its foundation. Picocodex narrows that work to Satyr's
+embeddable harness boundary, stripping out KVM/VM-backed execution, payments,
+deployment, user interface and tenant-control layers. Props to
+[gakonst](https://github.com/gakonst) for starting this initiative.
+
 ## Capabilities
 
 - typed Responses lifecycle and events;
